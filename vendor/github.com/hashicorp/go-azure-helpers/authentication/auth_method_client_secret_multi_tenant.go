@@ -1,11 +1,13 @@
 package authentication
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/hashicorp/go-multierror"
+	"github.com/manicminer/hamilton/environments"
 )
 
 type servicePrincipalClientSecretMultiTenantAuth struct {
@@ -54,6 +56,10 @@ func (a servicePrincipalClientSecretMultiTenantAuth) getAuthorizationToken(sende
 
 	auth := autorest.NewMultiTenantServicePrincipalTokenAuthorizer(spt)
 	return auth, nil
+}
+
+func (a servicePrincipalClientSecretMultiTenantAuth) getAuthorizationTokenV2(ctx context.Context, environment environments.Environment, tenantId string, scopes []string) (autorest.Authorizer, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (a servicePrincipalClientSecretMultiTenantAuth) populateConfig(c *Config) error {

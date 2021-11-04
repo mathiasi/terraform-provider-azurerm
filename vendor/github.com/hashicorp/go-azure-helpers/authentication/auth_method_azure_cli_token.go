@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure/cli"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-version"
+	"github.com/manicminer/hamilton/environments"
 )
 
 type azureCLIProfile struct {
@@ -142,6 +143,10 @@ func (a azureCliTokenAuth) getAuthorizationToken(sender autorest.Sender, oauth *
 
 	auth := autorest.NewBearerAuthorizer(spt)
 	return auth, nil
+}
+
+func (a azureCliTokenAuth) getAuthorizationTokenV2(ctx context.Context, environment environments.Environment, tenantId string, scopes []string) (autorest.Authorizer, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (a azureCliTokenAuth) name() string {

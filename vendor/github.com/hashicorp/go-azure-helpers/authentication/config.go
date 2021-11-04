@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
+	"github.com/manicminer/hamilton/environments"
 )
 
 // Config is the configuration structure used to instantiate a
@@ -119,7 +120,13 @@ func (c Config) BearerAuthorizerCallback(sender autorest.Sender, oauthConfig *OA
 	})
 }
 
-// GetAuthorizationToken returns an authorization token for the authentication method defined in the Config
+// GetAuthorizationToken returns an autorest.Authorizer for the authentication method defined in the Config
 func (c Config) GetAuthorizationToken(sender autorest.Sender, oauth *OAuthConfig, endpoint string) (autorest.Authorizer, error) {
 	return c.authMethod.getAuthorizationToken(sender, oauth, endpoint)
+}
+
+// GetAuthorizationTokenV2 returns an autorest.Authorizer sourced from hamilton/auth
+func (c Config) GetAuthorizationTokenV2(ctx context.Context, environment environments.Environment, tenantId string, api environments.Api) (autorest.Authorizer, error) {
+	scopes := []string{fmt.Sprintf("%s/.default", strings.TrimRight(string(api.Endpoint), "/"))}
+	return c.authMethod.getAuthorizationTokenV2(ctx, environment, tenantId, scopes)
 }

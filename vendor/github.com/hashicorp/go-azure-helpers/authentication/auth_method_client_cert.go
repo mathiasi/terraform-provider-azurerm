@@ -1,6 +1,7 @@
 package authentication
 
 import (
+	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/hashicorp/go-multierror"
+	"github.com/manicminer/hamilton/auth"
+	"github.com/manicminer/hamilton/environments"
 	"golang.org/x/crypto/pkcs12"
 )
 
@@ -43,13 +46,13 @@ func (a servicePrincipalClientCertificateAuth) name() string {
 
 func (a servicePrincipalClientCertificateAuth) getAuthorizationToken(sender autorest.Sender, oauth *OAuthConfig, endpoint string) (autorest.Authorizer, error) {
 	if oauth.OAuth == nil {
-		return nil, fmt.Errorf("Error getting Authorization Token for client cert: an OAuth token wasn't configured correctly; please file a bug with more details")
+		return nil, fmt.Errorf("getting Authorization Token for client cert: an OAuth token wasn't configured correctly; please file a bug with more details")
 	}
 
 	// Get the certificate and private key from pfx file
 	certificate, rsaPrivateKey, err := decodePkcs12File(a.clientCertPath, a.clientCertPassword)
 	if err != nil {
-		return nil, fmt.Errorf("Error decoding pkcs12 certificate: %v", err)
+		return nil, fmt.Errorf("decoding pkcs12 certificate: %v", err)
 	}
 
 	spt, err := adal.NewServicePrincipalTokenFromCertificate(*oauth.OAuth, a.clientId, certificate, rsaPrivateKey, endpoint)
@@ -68,6 +71,29 @@ func (a servicePrincipalClientCertificateAuth) getAuthorizationToken(sender auto
 	return auth, nil
 }
 
+func (a servicePrincipalClientCertificateAuth) getAuthorizationTokenV2(ctx context.Context, environment environments.Environment, tenantId string, scopes []string) (autorest.Authorizer, error) {
+	// Get the certificate and private key from pfx file
+	certificate, rsaPrivateKey, err := decodePkcs12File(a.clientCertPath, a.clientCertPassword)
+	if err != nil {
+		return nil, fmt.Errorf("decoding pkcs12 certificate: %v", err)
+	}
+
+	conf := auth.ClientCredentialsConfig{
+		ClientID:    a.clientId,
+		PrivateKey:  x509.MarshalPKCS1PrivateKey(rsaPrivateKey),
+		Certificate: certificate.Raw,
+		Scopes:      scopes,
+		TokenURL:    auth.TokenEndpoint(environment.AzureADEndpoint, tenantId, auth.TokenVersion2),
+	}
+
+	authorizer := conf.TokenSource(ctx, auth.ClientCredentialsAssertionType)
+	if authTyped, ok := authorizer.(autorest.Authorizer); ok {
+		return authTyped, nil
+	}
+
+	return nil, fmt.Errorf("returned auth.Authorizer does not implement autorest.Authorizer")
+}
+
 func (a servicePrincipalClientCertificateAuth) populateConfig(c *Config) error {
 	c.AuthenticatedAsAServicePrincipal = true
 	c.GetAuthenticatedObjectID = buildServicePrincipalObjectIDFunc(c)
@@ -77,7 +103,7 @@ func (a servicePrincipalClientCertificateAuth) populateConfig(c *Config) error {
 func (a servicePrincipalClientCertificateAuth) validate() error {
 	var err *multierror.Error
 
-	fmtErrorMessage := "A %s must be configured when authenticating as a Service Principal using a Client Certificate."
+	fmtErrorMessage := "a %s must be configured when authenticating as a Service Principal using a Client Certificate"
 
 	if !a.tenantOnly && a.subscriptionId == "" {
 		err = multierror.Append(err, fmt.Errorf(fmtErrorMessage, "Subscription ID"))
@@ -94,7 +120,7 @@ func (a servicePrincipalClientCertificateAuth) validate() error {
 		// validate the certificate path is a valid pfx file
 		_, _, derr := decodePkcs12File(a.clientCertPath, a.clientCertPassword)
 		if derr != nil {
-			err = multierror.Append(err, fmt.Errorf("The Client Certificate Path is not a valid pfx file: %v", derr))
+			err = multierror.Append(err, fmt.Errorf("the Client Certificate Path is not a valid pfx file: %v", derr))
 		}
 	}
 
@@ -108,7 +134,7 @@ func (a servicePrincipalClientCertificateAuth) validate() error {
 func decodePkcs12File(f string, password string) (*x509.Certificate, *rsa.PrivateKey, error) {
 	certificateData, err := ioutil.ReadFile(f)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error reading Client Certificate %q: %v", f, err)
+		return nil, nil, fmt.Errorf("reading Client Certificate %q: %v", f, err)
 	}
 
 	privateKey, certificate, err := pkcs12.Decode(certificateData, password)

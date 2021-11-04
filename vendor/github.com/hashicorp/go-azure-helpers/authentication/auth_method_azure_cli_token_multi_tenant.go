@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure/cli"
 	"github.com/hashicorp/go-multierror"
+	"github.com/manicminer/hamilton/environments"
 )
 
 type azureCliTokenMultiTenantAuth struct {
@@ -131,6 +132,10 @@ func (a azureCliTokenMultiTenantAuth) getAuthorizationToken(sender autorest.Send
 
 	auth := autorest.NewMultiTenantServicePrincipalTokenAuthorizer(&m)
 	return auth, nil
+}
+
+func (a azureCliTokenMultiTenantAuth) getAuthorizationTokenV2(ctx context.Context, environment environments.Environment, tenantId string, scopes []string) (autorest.Authorizer, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (a azureCliTokenMultiTenantAuth) name() string {

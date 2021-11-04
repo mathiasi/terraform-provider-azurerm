@@ -1,11 +1,14 @@
 package authentication
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/hashicorp/go-multierror"
+	"github.com/manicminer/hamilton/auth"
+	"github.com/manicminer/hamilton/environments"
 )
 
 type servicePrincipalClientSecretAuth struct {
@@ -47,6 +50,22 @@ func (a servicePrincipalClientSecretAuth) getAuthorizationToken(sender autorest.
 	spt.SetSender(sender)
 
 	return autorest.NewBearerAuthorizer(spt), nil
+}
+
+func (a servicePrincipalClientSecretAuth) getAuthorizationTokenV2(ctx context.Context, environment environments.Environment, tenantId string, scopes []string) (autorest.Authorizer, error) {
+	conf := auth.ClientCredentialsConfig{
+		ClientID:     a.clientId,
+		ClientSecret: a.clientSecret,
+		Scopes:       scopes,
+		TokenURL:     auth.TokenEndpoint(environment.AzureADEndpoint, tenantId, auth.TokenVersion2),
+	}
+
+	authorizer := conf.TokenSource(ctx, auth.ClientCredentialsSecretType)
+	if authTyped, ok := authorizer.(autorest.Authorizer); ok {
+		return authTyped, nil
+	}
+
+	return nil, fmt.Errorf("returned auth.Authorizer does not implement autorest.Authorizer")
 }
 
 func (a servicePrincipalClientSecretAuth) populateConfig(c *Config) error {

@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/common"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/features"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/resourceproviders"
+	"github.com/manicminer/hamilton/environments"
 )
 
 type ClientBuilder struct {
@@ -78,22 +79,31 @@ func Build(ctx context.Context, builder ClientBuilder) (*Client, error) {
 
 	sender := sender.BuildSender("AzureRM")
 
+	// Get Hamilton environment
+	hamiltonEnvironment, err := environments.EnvironmentFromString(builder.AuthConfig.Environment)
+	if err != nil {
+		return nil, fmt.Errorf("hamilton environment config error: %+v", err)
+	}
+
 	// Resource Manager endpoints
 	endpoint := env.ResourceManagerEndpoint
-	auth, err := builder.AuthConfig.GetAuthorizationToken(sender, oauthConfig, env.TokenAudience)
+	//auth, err := builder.AuthConfig.GetAuthorizationToken(sender, oauthConfig, env.TokenAudience)
+	auth, err := builder.AuthConfig.GetAuthorizationTokenV2(ctx, hamiltonEnvironment, builder.AuthConfig.TenantID, hamiltonEnvironment.ResourceManager)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get authorization token for resource manager: %+v", err)
 	}
 
 	// Graph Endpoints
 	graphEndpoint := env.GraphEndpoint
-	graphAuth, err := builder.AuthConfig.GetAuthorizationToken(sender, oauthConfig, graphEndpoint)
+	//graphAuth, err := builder.AuthConfig.GetAuthorizationToken(sender, oauthConfig, graphEndpoint)
+	graphAuth, err := builder.AuthConfig.GetAuthorizationTokenV2(ctx, hamiltonEnvironment, builder.AuthConfig.TenantID, hamiltonEnvironment.AadGraph)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get authorization token for graph endpoints: %+v", err)
 	}
 
 	// Storage Endpoints
 	storageAuth, err := builder.AuthConfig.GetAuthorizationToken(sender, oauthConfig, env.ResourceIdentifiers.Storage)
+	//storageAuth, err := builder.AuthConfig.GetAuthorizationTokenV2(ctx, hamiltonEnvironment, builder.AuthConfig.TenantID, env.ResourceIdentifiers.Storage)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get authorization token for storage endpoints: %+v", err)
 	}
