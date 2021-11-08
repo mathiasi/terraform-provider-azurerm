@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
@@ -16,9 +17,12 @@ import (
 )
 
 type servicePrincipalClientCertificateAuth struct {
+	ctx                context.Context
+	auxiliaryTenantIds []string
 	clientId           string
 	clientCertPath     string
 	clientCertPassword string
+	environment        string
 	subscriptionId     string
 	tenantId           string
 	tenantOnly         bool
@@ -26,12 +30,15 @@ type servicePrincipalClientCertificateAuth struct {
 
 func (a servicePrincipalClientCertificateAuth) build(b Builder) (authMethod, error) {
 	method := servicePrincipalClientCertificateAuth{
+		ctx:                b.Context,
 		clientId:           b.ClientID,
 		clientCertPath:     b.ClientCertPath,
 		clientCertPassword: b.ClientCertPassword,
+		environment:        b.Environment,
 		subscriptionId:     b.SubscriptionID,
 		tenantId:           b.TenantID,
 		tenantOnly:         b.TenantOnly,
+		auxiliaryTenantIds: b.AuxiliaryTenantIDs,
 	}
 	return method, nil
 }
@@ -71,19 +78,31 @@ func (a servicePrincipalClientCertificateAuth) getAuthorizationToken(sender auto
 	return auth, nil
 }
 
-func (a servicePrincipalClientCertificateAuth) getAuthorizationTokenV2(ctx context.Context, environment environments.Environment, tenantId string, scopes []string) (autorest.Authorizer, error) {
-	// Get the certificate and private key from pfx file
+func (a servicePrincipalClientCertificateAuth) getAuthorizationTokenV2(_ autorest.Sender, _ *OAuthConfig, endpoint string) (autorest.Authorizer, error) {
 	certificate, rsaPrivateKey, err := decodePkcs12File(a.clientCertPath, a.clientCertPassword)
 	if err != nil {
 		return nil, fmt.Errorf("decoding pkcs12 certificate: %v", err)
 	}
 
+	environment, err := environments.EnvironmentFromString(a.environment)
+	if err != nil {
+		return nil, fmt.Errorf("environment config error: %v", err)
+	}
+
 	conf := auth.ClientCredentialsConfig{
-		ClientID:    a.clientId,
-		PrivateKey:  x509.MarshalPKCS1PrivateKey(rsaPrivateKey),
-		Certificate: certificate.Raw,
-		Scopes:      scopes,
-		TokenURL:    auth.TokenEndpoint(environment.AzureADEndpoint, tenantId, auth.TokenVersion2),
+		Environment:        environment,
+		TenantID:           a.tenantId,
+		AuxiliaryTenantIDs: a.auxiliaryTenantIds,
+		ClientID:           a.clientId,
+		PrivateKey:         x509.MarshalPKCS1PrivateKey(rsaPrivateKey),
+		Certificate:        certificate.Raw,
+		Scopes:             []string{fmt.Sprintf("%s/.default", strings.TrimRight(endpoint, "/"))},
+		TokenVersion:       auth.TokenVersion2,
+	}
+
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	authorizer := conf.TokenSource(ctx, auth.ClientCredentialsAssertionType)
@@ -116,7 +135,6 @@ func (a servicePrincipalClientCertificateAuth) validate() error {
 	if a.clientCertPath == "" {
 		err = multierror.Append(err, fmt.Errorf(fmtErrorMessage, "Client Certificate Path"))
 	} else {
-
 		// validate the certificate path is a valid pfx file
 		_, _, derr := decodePkcs12File(a.clientCertPath, a.clientCertPassword)
 		if derr != nil {

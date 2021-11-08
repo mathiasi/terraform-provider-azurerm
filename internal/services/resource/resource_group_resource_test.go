@@ -176,6 +176,9 @@ func (t ResourceGroupResource) basicConfig(data acceptance.TestData) string {
 	return fmt.Sprintf(`
 provider "azurerm" {
   features {}
+  client_certificate_path     = ""
+  client_certificate_password = ""
+  auxiliary_tenant_ids        = ["f9626912-1594-4537-becf-f5cc06a19fd3"]
 }
 
 resource "azurerm_resource_group" "test" {

@@ -1,10 +1,7 @@
 package authentication
 
 import (
-	"context"
-
 	"github.com/Azure/go-autorest/autorest"
-	"github.com/manicminer/hamilton/environments"
 )
 
 type authMethod interface {
@@ -14,7 +11,7 @@ type authMethod interface {
 
 	getAuthorizationToken(sender autorest.Sender, oauthConfig *OAuthConfig, endpoint string) (autorest.Authorizer, error)
 
-	getAuthorizationTokenV2(ctx context.Context, environment environments.Environment, tenantId string, scopes []string) (autorest.Authorizer, error)
+	getAuthorizationTokenV2(sender autorest.Sender, oauthConfig *OAuthConfig, endpoint string) (autorest.Authorizer, error)
 
 	name() string
 

@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure/cli"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-version"
-	"github.com/manicminer/hamilton/environments"
 )
 
 type azureCLIProfile struct {
@@ -145,8 +144,9 @@ func (a azureCliTokenAuth) getAuthorizationToken(sender autorest.Sender, oauth *
 	return auth, nil
 }
 
-func (a azureCliTokenAuth) getAuthorizationTokenV2(ctx context.Context, environment environments.Environment, tenantId string, scopes []string) (autorest.Authorizer, error) {
-	return nil, fmt.Errorf("not implemented")
+func (a azureCliTokenAuth) getAuthorizationTokenV2(sender autorest.Sender, oauth *OAuthConfig, endpoint string) (autorest.Authorizer, error) {
+	// token version is the decision of az-cli, so we'll pass through to the existing method for continuity
+	return a.getAuthorizationToken(sender, oauth, endpoint)
 }
 
 func (a azureCliTokenAuth) name() string {

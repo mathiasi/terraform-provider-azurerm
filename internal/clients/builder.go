@@ -79,24 +79,28 @@ func Build(ctx context.Context, builder ClientBuilder) (*Client, error) {
 
 	sender := sender.BuildSender("AzureRM")
 
-	// Get Hamilton environment
-	hamiltonEnvironment, err := environments.EnvironmentFromString(builder.AuthConfig.Environment)
+	// Get Hamilton environment to discover API endpoint
+	environment, err := environments.EnvironmentFromString(builder.AuthConfig.Environment)
 	if err != nil {
 		return nil, fmt.Errorf("hamilton environment config error: %+v", err)
 	}
 
 	// Resource Manager endpoints
-	endpoint := env.ResourceManagerEndpoint
+	//endpoint := env.ResourceManagerEndpoint
+	endpoint := string(environment.ResourceManager.Endpoint)
+
 	//auth, err := builder.AuthConfig.GetAuthorizationToken(sender, oauthConfig, env.TokenAudience)
-	auth, err := builder.AuthConfig.GetAuthorizationTokenV2(ctx, hamiltonEnvironment, builder.AuthConfig.TenantID, hamiltonEnvironment.ResourceManager)
+	auth, err := builder.AuthConfig.GetAuthorizationTokenV2(sender, oauthConfig, endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get authorization token for resource manager: %+v", err)
 	}
 
 	// Graph Endpoints
-	graphEndpoint := env.GraphEndpoint
+	//graphEndpoint := env.GraphEndpoint
+	graphEndpoint := string(environment.AadGraph.Endpoint)
+
 	//graphAuth, err := builder.AuthConfig.GetAuthorizationToken(sender, oauthConfig, graphEndpoint)
-	graphAuth, err := builder.AuthConfig.GetAuthorizationTokenV2(ctx, hamiltonEnvironment, builder.AuthConfig.TenantID, hamiltonEnvironment.AadGraph)
+	graphAuth, err := builder.AuthConfig.GetAuthorizationTokenV2(sender, oauthConfig, graphEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get authorization token for graph endpoints: %+v", err)
 	}

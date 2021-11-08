@@ -3,6 +3,7 @@ package authentication
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
@@ -12,8 +13,10 @@ import (
 )
 
 type servicePrincipalClientSecretAuth struct {
+	ctx            context.Context
 	clientId       string
 	clientSecret   string
+	environment    string
 	subscriptionId string
 	tenantId       string
 	tenantOnly     bool
@@ -21,8 +24,10 @@ type servicePrincipalClientSecretAuth struct {
 
 func (a servicePrincipalClientSecretAuth) build(b Builder) (authMethod, error) {
 	method := servicePrincipalClientSecretAuth{
+		ctx:            b.Context,
 		clientId:       b.ClientID,
 		clientSecret:   b.ClientSecret,
+		environment:    b.Environment,
 		subscriptionId: b.SubscriptionID,
 		tenantId:       b.TenantID,
 		tenantOnly:     b.TenantOnly,
@@ -40,7 +45,7 @@ func (a servicePrincipalClientSecretAuth) name() string {
 
 func (a servicePrincipalClientSecretAuth) getAuthorizationToken(sender autorest.Sender, oauth *OAuthConfig, endpoint string) (autorest.Authorizer, error) {
 	if oauth.OAuth == nil {
-		return nil, fmt.Errorf("Error getting Authorization Token for client secret auth: an OAuth token wasn't configured correctly; please file a bug with more details")
+		return nil, fmt.Errorf("getting Authorization Token for client secret auth: an OAuth token wasn't configured correctly; please file a bug with more details")
 	}
 
 	spt, err := adal.NewServicePrincipalToken(*oauth.OAuth, a.clientId, a.clientSecret, endpoint)
@@ -52,12 +57,24 @@ func (a servicePrincipalClientSecretAuth) getAuthorizationToken(sender autorest.
 	return autorest.NewBearerAuthorizer(spt), nil
 }
 
-func (a servicePrincipalClientSecretAuth) getAuthorizationTokenV2(ctx context.Context, environment environments.Environment, tenantId string, scopes []string) (autorest.Authorizer, error) {
+func (a servicePrincipalClientSecretAuth) getAuthorizationTokenV2(_ autorest.Sender, _ *OAuthConfig, endpoint string) (autorest.Authorizer, error) {
+	environment, err := environments.EnvironmentFromString(a.environment)
+	if err != nil {
+		return nil, fmt.Errorf("environment config error: %v", err)
+	}
+
 	conf := auth.ClientCredentialsConfig{
+		Environment:  environment,
+		TenantID:     a.tenantId,
 		ClientID:     a.clientId,
 		ClientSecret: a.clientSecret,
-		Scopes:       scopes,
-		TokenURL:     auth.TokenEndpoint(environment.AzureADEndpoint, tenantId, auth.TokenVersion2),
+		Scopes:       []string{fmt.Sprintf("%s/.default", strings.TrimRight(endpoint, "/"))},
+		TokenVersion: auth.TokenVersion2,
+	}
+
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	authorizer := conf.TokenSource(ctx, auth.ClientCredentialsSecretType)

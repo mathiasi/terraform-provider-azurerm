@@ -13,6 +13,9 @@ var (
 // Builder supports all of the possible Authentication values and feature toggles
 // required to build a working Config for Authentication purposes.
 type Builder struct {
+	// Context for passing to auth methods that accept one
+	Context context.Context
+
 	// Core
 	ClientID       string
 	SubscriptionID string
