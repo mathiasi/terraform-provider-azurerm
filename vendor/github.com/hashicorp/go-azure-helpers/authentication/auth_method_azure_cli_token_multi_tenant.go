@@ -11,14 +11,15 @@ import (
 )
 
 type azureCliTokenMultiTenantAuth struct {
+	clientId                     string
 	profile                      *azureCLIProfileMultiTenant
 	servicePrincipalAuthDocsLink string
 }
 
 func (a azureCliTokenMultiTenantAuth) build(b Builder) (authMethod, error) {
 	auth := azureCliTokenMultiTenantAuth{
+		clientId: b.ClientID,
 		profile: &azureCLIProfileMultiTenant{
-			clientId:           b.ClientID,
 			environment:        b.Environment,
 			subscriptionId:     b.SubscriptionID,
 			tenantId:           b.TenantID,
@@ -54,11 +55,6 @@ Alternatively you can authenticate using the Azure CLI by using a User Account.`
 		return nil, fmt.Errorf("Error retrieving the Profile from the Azure CLI: %s Please re-authenticate using `az login`.", err)
 	}
 
-	err = auth.profile.populateClientId()
-	if err != nil {
-		return nil, fmt.Errorf("Error populating Client ID from the Azure CLI: %+v", err)
-	}
-
 	return auth, nil
 }
 
@@ -86,7 +82,7 @@ func (a azureCliTokenMultiTenantAuth) getAuthorizationToken(sender autorest.Send
 		return nil, fmt.Errorf("Error converting Authorization Token to an ADAL Token: %s", err)
 	}
 
-	spt, err := adal.NewServicePrincipalTokenFromManualToken(*oauth.OAuth, a.profile.clientId, endpoint, adalToken)
+	spt, err := adal.NewServicePrincipalTokenFromManualToken(*oauth.OAuth, a.clientId, endpoint, adalToken)
 	if err != nil {
 		return nil, err
 	}
@@ -111,15 +107,15 @@ func (a azureCliTokenMultiTenantAuth) getAuthorizationToken(sender autorest.Send
 	for t := range a.profile.auxiliaryTenantIDs {
 		token, err := obtainAuthorizationTokenByTenant(endpoint, a.profile.auxiliaryTenantIDs[t])
 		if err != nil {
-			return nil, fmt.Errorf("Error obtaining Authorization Token from the Azure CLI: %s", err)
+			return nil, fmt.Errorf("obtaining Authorization Token from the Azure CLI: %s", err)
 		}
 
 		adalToken, err := token.ToADALToken()
 		if err != nil {
-			return nil, fmt.Errorf("Error converting Authorization Token to an ADAL Token: %s", err)
+			return nil, fmt.Errorf("converting Authorization Token to an ADAL Token: %s", err)
 		}
 
-		aux, err := adal.NewServicePrincipalTokenFromManualToken(*oauth.OAuth, a.profile.clientId, endpoint, adalToken)
+		aux, err := adal.NewServicePrincipalTokenFromManualToken(*oauth.OAuth, a.clientId, endpoint, adalToken)
 		if err != nil {
 			return nil, err
 		}
@@ -143,7 +139,7 @@ func (a azureCliTokenMultiTenantAuth) name() string {
 }
 
 func (a azureCliTokenMultiTenantAuth) populateConfig(c *Config) error {
-	c.ClientID = a.profile.clientId
+	c.ClientID = a.clientId
 	c.TenantID = a.profile.tenantId
 	c.Environment = a.profile.environment
 	c.SubscriptionID = a.profile.subscriptionId
@@ -163,15 +159,15 @@ func (a azureCliTokenMultiTenantAuth) populateConfig(c *Config) error {
 func (a azureCliTokenMultiTenantAuth) validate() error {
 	var err *multierror.Error
 
-	errorMessageFmt := "A %s was not found in your Azure CLI Credentials.\n\nPlease login to the Azure CLI again via `az login`"
-
 	if a.profile == nil {
 		return fmt.Errorf("Azure CLI Profile is nil - this is an internal error and should be reported.")
 	}
 
-	if a.profile.clientId == "" {
-		err = multierror.Append(err, fmt.Errorf(errorMessageFmt, "Client ID"))
+	if a.clientId == "" {
+		err = multierror.Append(err, fmt.Errorf("a %s must be configured when authenticating using the Azure CLI with Auxiliary Tenant IDs.", "Client ID"))
 	}
+
+	errorMessageFmt := "A %s was not found in your Azure CLI Credentials.\n\nPlease login to the Azure CLI again via `az login`"
 
 	if a.profile.subscriptionId == "" {
 		err = multierror.Append(err, fmt.Errorf(errorMessageFmt, "Subscription ID"))
